@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.text.*?>
+<?import java.lang.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox prefHeight="300.0" prefWidth="400.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.SellerListController">
+   <children>
+      <Label text="Seller Resgistation">
+         <font>
+            <Font name="System Bold" size="14.0" />
+         </font>
+         <padding>
+            <Insets left="5.0" top="5.0" />
+         </padding>
+      </Label>
+      <ToolBar prefHeight="40.0" prefWidth="200.0">
+        <items>
+          <Button fx:id="btnNew" mnemonicParsing="false" onAction="#onBtnNewAction" text="New" />
+        </items>
+      </ToolBar>
+      <TableView fx:id="tableViewSeller" prefHeight="200.0" prefWidth="200.0">
+        <columns>
+          <TableColumn fx:id="tabeColumnId" prefWidth="46.0" text="Id" />
+          <TableColumn fx:id="tabeColumnName" prefWidth="228.0" text="Name" />
+            <TableColumn fx:id="tableColumnEDIT" prefWidth="48.0" />
+            <TableColumn fx:id="tableColumnREMOVE" prefWidth="65.0" />
+        </columns>
+      </TableView>
+   </children>
+</VBox>
