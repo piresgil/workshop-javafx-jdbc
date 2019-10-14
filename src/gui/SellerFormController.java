@@ -1,9 +1,11 @@
 package gui;
 
 import java.net.URL;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -15,16 +17,24 @@ import gui.listeners.DataChangeListener;
 import gui.util.Alerts;
 import gui.util.Constraints;
 import gui.util.Utils;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
+import javafx.util.Callback;
+import model.entities.Department;
 import model.entities.Seller;
 import model.exceptions.ValidationException;
+import model.services.DepartmentService;
 import model.services.SellerService;
 
 public class SellerFormController implements Initializable {
@@ -32,6 +42,8 @@ public class SellerFormController implements Initializable {
 	private Seller entity;
 
 	private SellerService service;
+
+	private DepartmentService departmentService;
 
 	private List<DataChangeListener> dataChangeListener = new ArrayList<>();
 
@@ -46,6 +58,8 @@ public class SellerFormController implements Initializable {
 	@FXML
 	private TextField txtBaseSalary;
 	@FXML
+	private ComboBox<Department> cboDepartment;
+	@FXML
 	private Label lblErrorName;
 	@FXML
 	private Label lblErrorEmail;
@@ -54,16 +68,21 @@ public class SellerFormController implements Initializable {
 	@FXML
 	private Label lblErrorBaseSalary;
 	@FXML
+	private Label lblErrorDepartment;
+	@FXML
 	private Button btnSave;
 	@FXML
 	private Button btnCancel;
+
+	private ObservableList<Department> obsList;
 
 	public void setSeller(Seller entity) {
 		this.entity = entity;
 	}
 
-	public void setSellerService(SellerService service) {
+	public void setServices(SellerService service, DepartmentService departmentService) {
 		this.service = service;
+		this.departmentService = departmentService;
 	}
 
 	public void subscribeDataChangeListener(DataChangeListener listener) {
@@ -83,10 +102,11 @@ public class SellerFormController implements Initializable {
 			service.saveOrUpdate(entity);
 			notifyDataChangeListeners();
 			Utils.currentStage(event).close();
-		}catch (ValidationException e) {
+			
+		} catch (ValidationException e) {
 			setErrorMessages(e.getErrors());
-		}
-		catch (DbException e) {
+			
+		} catch (DbException e) {
 			Alerts.showAlert("Error saving object", null, e.getMessage(), AlertType.ERROR);
 		}
 	}
@@ -98,20 +118,43 @@ public class SellerFormController implements Initializable {
 	}
 
 	private Seller getFormData() {
+		
 		Seller obj = new Seller();
 
 		ValidationException exception = new ValidationException("Validation error");
 
 		obj.setId(Utils.tryParseToInt(txtId.getText()));
+
 		if (txtName.getText() == null || txtName.getText().trim().equals("")) {
 			exception.addError("name", "field can´t be empty");
 		}
 		obj.setName(txtName.getText());
 
+		if (txtEmail.getText() == null || txtEmail.getText().trim().equals("")) {
+			exception.addError("email", "field can´t be empty");
+		}
+		obj.setEmail(txtEmail.getText());
+
+		if (dpBirthDate.getValue() == null) {
+			exception.addError("birthDate", "field can´t be empty");
+		} else {
+			Instant instant = Instant.from(dpBirthDate.getValue().atStartOfDay(ZoneId.systemDefault()));
+			obj.setBirthDate(Date.from(instant));
+		}
+
+		if (txtBaseSalary.getText() == null || txtBaseSalary.getText().trim().equals("") || txtBaseSalary.getText().equals("0.00")) {
+			exception.addError("baseSalary", "field can´t be empty");
+		}
+		obj.setBaseSalary(Utils.tryParceToDouble(txtBaseSalary.getText()));
+		
+		if (cboDepartment.getValue() == null) {
+			exception.addError("Department", "field can´t be empty");
+		}
+		obj.setDepartment(cboDepartment.getValue());
+
 		if (exception.getErrors().size() > 0) {
 			throw exception;
 		}
-
 		return obj;
 	}
 
@@ -131,6 +174,7 @@ public class SellerFormController implements Initializable {
 		Constraints.setTextFieldMaxLength(txtEmail, 60);
 		Utils.formatDatePicker(dpBirthDate, "dd/MM/yyyy");
 		Constraints.setTextFieldDouble(txtBaseSalary);
+		initializeComboBoxDepartment();
 	}
 
 	public void updateFormData() {
@@ -140,17 +184,50 @@ public class SellerFormController implements Initializable {
 		txtId.setText(String.valueOf(entity.getId()));
 		txtName.setText(entity.getName());
 		txtEmail.setText(entity.getEmail());
-		if(entity.getBirthDate() != null) { 
-		dpBirthDate.setValue(LocalDateTime.ofInstant(entity.getBirthDate().toInstant(), ZoneId.systemDefault()).toLocalDate());
-		}
 		Locale.setDefault(Locale.US);
 		txtBaseSalary.setText(String.format("%.2f", entity.getBaseSalary()));
+		
+		if(entity.getBirthDate() != null) {
+// Instant instant = Instant.from(dpBirthDate.getValue().atStartOfDay(ZoneId.systemDefault()));
+//	obj.setBirthDate(Date.from(instant));
+//	new java.util.Date(rs.getTimestamp("BirthDate").getTime()));
+// LocalDate date = dpBirthDate.getValue();
+// LocalDate date = dpBirthDate.getValue().atStartOfDay(ZoneId.systemDefault()).toLocalDate();
+		dpBirthDate.setValue(LocalDateTime.ofInstant(entity.getBirthDate().toInstant(), ZoneId.systemDefault()).toLocalDate());
+ //dpBirthDate.setValue(LocalDate.ofInstant(entity.getBirthDate().toInstant(), ZoneId.systemDefault());
+		}
+		
+		cboDepartment.setValue(entity.getDepartment());
+	}
+
+	public void loadAssociatedObjects() {
+		if (departmentService == null) {
+			throw new IllegalStateException("DepartmentService was null");
+		}
+		List<Department> list = departmentService.findAll();
+		obsList = FXCollections.observableArrayList(list);
+		cboDepartment.setItems(obsList);
 	}
 
 	private void setErrorMessages(Map<String, String> errors) {
 		Set<String> fields = errors.keySet();
-		if(fields.contains("name")) {
-			lblErrorName.setText(errors.get("name"));
-		}
+
+		lblErrorName.setText((fields.contains("name") ? errors.get("name") : errors.get("")));
+		lblErrorEmail.setText((fields.contains("email") ? errors.get("email") : errors.get("")));
+		lblErrorBirthDate.setText((fields.contains("birthDate") ? errors.get("birthDate") : errors.get("")));
+		lblErrorBaseSalary.setText((fields.contains("baseSalary") ? errors.get("baseSalary") : errors.get("")));
+		lblErrorDepartment.setText((fields.contains("baseSalary") ? errors.get("baseSalary") : errors.get("")));
+	}
+
+	private void initializeComboBoxDepartment() {
+		Callback<ListView<Department>, ListCell<Department>> factory = lv -> new ListCell<Department>() {
+			@Override
+			protected void updateItem(Department item, boolean empty) {
+				super.updateItem(item, empty);
+				setText(empty ? "" : item.getName());
+			}
+		};
+		cboDepartment.setCellFactory(factory);
+		cboDepartment.setButtonCell(factory.call(null));
 	}
 }
